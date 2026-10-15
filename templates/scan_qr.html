@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>連続スキャン</title>
+    <style>
+        body { text-align: center; font-family: sans-serif; background-color: #f4f4f4; padding: 10px; }
+        .location-badge { background: #007bff; color: white; padding: 5px 15px; border-radius: 20px; display: inline-block; margin-bottom: 10px;}
+
+        textarea {
+            width: 80%;
+            height: 300px;
+            font-size: 1.2rem;
+            padding: 10px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            resize: vertical;
+            /* 半角入力を促す設定 */
+            ime-mode: disabled;
+        }
+
+        button {
+            display: block; width: 80%; max-width: 300px; margin: 20px auto;
+            padding: 15px; font-size: 1.2rem; cursor: pointer;
+            background-color: #28a745; color: white; border: none; border-radius: 5px;
+        }
+        p.hint { font-size: 0.9rem; color: #666; }
+    </style>
+    <script>
+        // ページ読み込み時に確実にフォーカスを当てる
+        window.onload = function() {
+            var input = document.getElementById("qr_input");
+            input.focus();
+            input.select();
+        };
+    </script>
+</head>
+<body>
+    <div class="location-badge">場所：{{ location }}</div>
+
+    <h2>連続スキャンモード</h2>
+    <p class="hint">スキャナーで読み取ってください。<br>半角モードで入力されます。</p>
+
+    <form action="/scan" method="POST">
+        <textarea id="qr_input" name="qr_codes" autofocus style="ime-mode: disabled;" placeholder="ここに管理番号が溜まります..."></textarea>
+
+        <button type="submit">一括照合を実行する</button>
+    </form>
+
+    <a href="/" style="color:#666; display:inline-block; margin-top:20px;">場所選択に戻る</a>
+</body>
+</html>

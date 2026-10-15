@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一括照合結果</title>
+    <style>
+        body { text-align: center; font-family: "Meiryo", "Yu Gothic", sans-serif; background-color: #fafafa; padding: 10px; }
+        .container { max-width: 950px; margin: 0 auto; }
+
+        .summary-box {
+            display: flex; justify-content: space-around;
+            background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px;
+            border: 1px solid #ccc;
+        }
+        .sum-item strong { display: block; font-size: 1.5rem; }
+        .sum-ok { color: #28a745; }
+        .sum-warn { color: #ffc107; }
+        .sum-err { color: #dc3545; }
+        .sum-missing { color: #6c757d; }
+
+        /* テーブル設定 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            margin-bottom: 30px;
+            border: 1px solid #000;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #000;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            cursor: pointer; /* クリックできることがわかるように指アイコンにする */
+            user-select: none; /* 文字選択されないようにする */
+            position: relative;
+        }
+        /* ソートアイコン用のスペース確保 */
+        th:hover {
+            background-color: #e6e6e6;
+        }
+
+        .row-success { background-color: #e8f5e9; }
+        .row-warning { background-color: #fff3cd; }
+        .row-danger { background-color: #f8d7da; }
+        .row-missing { background-color: #f9f9f9; color: #555; }
+
+        .missing-title { text-align: left; font-size: 1.2em; color: #555; margin-bottom: 10px; margin-top: 30px; border-left: 5px solid #6c757d; padding-left: 10px;}
+
+        /* ボタンデザイン */
+        .btn-action { padding: 12px 30px; font-size: 1.1em; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; text-decoration: none; display: inline-block;}
+        .btn-print { background-color: #6c757d; margin-bottom: 15px;}
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        {% if not is_pdf %}
+        <div style="text-align: right; margin-bottom: 10px;">
+            <a href="/download_pdf" class="btn-action btn-print">📥 結果をPDFでダウンロード</a>
+        </div>
+        {% endif %}
+
+        <h3>作業場所: {{ current_location }}</h3>
+        <p style="text-align: right; font-size: 0.8rem;">
+            発行日時: <script>document.write(new Date().toLocaleString());</script>
+        </p>
+
+        <div class="summary-box">
+            <div class="sum-item sum-ok">OK<br><strong>{{ summary.ok }}</strong></div>
+            <div class="sum-item sum-warn">場所違い<br><strong>{{ summary.ng_place }}</strong></div>
+            <div class="sum-item sum-err">未登録<br><strong>{{ summary.ng_unknown }}</strong></div>
+            <div class="sum-item sum-missing">スキャン漏れ<br><strong>{{ missing_items|length }}</strong></div>
+        </div>
+
+        <h4>読み取ったデータ</h4>
+        <p style="text-align: left; font-size: 0.8rem; color: #666;">※項目名をクリックすると並び替えできます</p>
+
+        <table id="resultTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable('resultTable', 0)">判定 ⇅</th>
+                    <th onclick="sortTable('resultTable', 1)">管理番号 ⇅</th>
+                    <th onclick="sortTable('resultTable', 2)">品名 ⇅</th>
+                    <th onclick="sortTable('resultTable', 3)">詳細・使用者 ⇅</th>
+                    <th onclick="sortTable('resultTable', 4)">本来の場所 ⇅</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for res in results %}
+                <tr class="row-{{ res.style }}">
+                    <td>{{ res.status }}</td>
+                    <td>{{ res.code }}</td>
+                    <td>{{ res.name }}</td>
+                    <td>{{ res.user }}</td>
+                    <td>
+                        {% if res.status == '場所違い' %}
+                            <span style="color:red; font-weight:bold;">{{ res.reg_loc }}</span>
+                        {% else %}
+                            {{ res.reg_loc }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5">データなし</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if missing_items %}
+        <div class="missing-title">この場所にあるはずですが、読み取られていません</div>
+        <table id="missingTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable('missingTable', 0)" style="width: 80px;">状態 ⇅</th>
+                    <th onclick="sortTable('missingTable', 1)">管理番号 ⇅</th>
+                    <th onclick="sortTable('missingTable', 2)">品名 ⇅</th>
+                    <th onclick="sortTable('missingTable', 3)">詳細・使用者 ⇅</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in missing_items %}
+                <tr class="row-missing">
+                    <td>未確認</td>
+                    <td>{{ item.code }}</td>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.user }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if not is_pdf %}
+        <div style="margin-top: 40px;">
+            <a href="/scan" class="btn-action">続けてスキャンする</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function sortTable(tableId, n) {
+            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            table = document.getElementById(tableId);
+            switching = true;
+            // 初回は昇順（Ascending）に設定
+            dir = "asc";
+
+            while (switching) {
+                switching = false;
+                rows = table.rows;
+
+                // ヘッダーを除くすべての行をループ (i=1から開始)
+                for (i = 1; i < (rows.length - 1); i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[n];
+                    y = rows[i + 1].getElementsByTagName("TD")[n];
+
+                    // 中身のテキストを取得して比較
+                    var xContent = x.textContent.toLowerCase();
+                    var yContent = y.textContent.toLowerCase();
+
+                    if (dir == "asc") {
+                        if (xContent > yContent) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    } else if (dir == "desc") {
+                        if (xContent < yContent) {
+                            shouldSwitch = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    switchcount ++;
+                } else {
+                    // 何も入れ替えが発生せず、かつ方向が"asc"だった場合、"desc"にしてやり直し
+                    if (switchcount == 0 && dir == "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

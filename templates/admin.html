@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理画面 - 台帳更新</title>
+    <style>
+        body { text-align: center; font-family: sans-serif; background-color: #f4f4f4; padding: 20px; }
+        .admin-box { background: white; padding: 30px; border-radius: 8px; max-width: 600px; margin: 0 auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .message { background-color: #d4edda; color: #155724; padding: 15px; border-radius: 4px; margin-bottom: 20px; font-weight: bold;}
+        .error-msg { background-color: #f8d7da; color: #721c24; }
+        input[type="file"] { margin: 20px 0; font-size: 1rem; padding: 10px; border: 1px dotted #999; width: 90%; background: #fafafa;}
+        button { padding: 12px 30px; font-size: 1.1rem; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .info-panel { text-align: left; background: #e9ecef; padding: 15px; border-radius: 4px; margin-bottom: 20px; font-size: 0.9rem;}
+        .header-actions { display: flex; justify-content: space-between; margin-bottom: 20px;}
+        .btn-link { color: #007bff; text-decoration: none; padding: 5px 10px; border: 1px solid #007bff; border-radius: 4px;}
+        .btn-logout { color: #dc3545; border-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="admin-box">
+        <div class="header-actions">
+            <a href="/" class="btn-link">🏠 スキャン画面へ</a>
+            <a href="/logout" class="btn-link btn-logout">🚪 ログアウト</a>
+        </div>
+
+        <h2>台帳（Excelファイル）の更新</h2>
+
+        {% if message %}
+        <div class="message {% if 'エラー' in message %}error-msg{% endif %}">
+            {{ message }}
+        </div>
+        {% endif %}
+
+        <div class="info-panel">
+            <strong>サーバー上の現在の台帳ファイル:</strong><br>
+            最終更新日時: {{ last_modified }}
+        </div>
+
+        <form method="POST" action="/admin" enctype="multipart/form-data">
+            <p style="color: #666; font-size: 0.9rem;">
+                ※ファイル名が違っていても、自動的に「管理台帳＆一覧表.xlsx」に名前を変更して上書き保存します。
+            </p>
+            <input type="file" name="excel_file" accept=".xlsx, .xls" required>
+            <br>
+            <button type="submit">⬆️ アップロードして台帳を更新する</button>
+        </form>
+    </div>
+</body>
+</html>
