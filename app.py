@@ -5,6 +5,7 @@ import csv
 import pdfkit
 import zipfile
 import secrets
+import sqlite3
 from datetime import datetime, timedelta
 
 # 本物のExcelを裏で操作するためのライブラリ
@@ -12,9 +13,29 @@ import win32com.client
 import pythoncom  # マルチスレッド（Webサーバー）環境でExcelを安全に動かすために必要
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
-ADMIN_USERNAME = os.environ.get('QRS_ADMIN_USERNAME', 'admin')
-ADMIN_PASSWORD = os.environ.get('QRS_ADMIN_PASSWORD')
+def load_local_credentials():
+    """初回だけ生成し、再起動・git pull後も同じ認証情報を使う。"""
+    os.makedirs(app.instance_path, exist_ok=True)
+    database = os.path.join(app.instance_path, 'local_credentials.sqlite3')
+    with sqlite3.connect(database, timeout=30) as connection:
+        connection.execute('CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        connection.execute('BEGIN IMMEDIATE')
+        values = dict(connection.execute('SELECT name, value FROM settings'))
+        for name, factory in [('secret_key', lambda: secrets.token_hex(32)),
+                              ('admin_password', lambda: secrets.token_urlsafe(18))]:
+            if name not in values:
+                values[name] = factory()
+                connection.execute('INSERT INTO settings (name, value) VALUES (?, ?)', (name, values[name]))
+    return values
+
+
+_local_credentials = load_local_credentials()
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or _local_credentials['secret_key']
+ADMIN_USERNAME = os.environ.get('QRS_ADMIN_USERNAME') or 'admin'
+ADMIN_PASSWORD = os.environ.get('QRS_ADMIN_PASSWORD') or _local_credentials['admin_password']
+if not os.environ.get('QRS_ADMIN_PASSWORD'):
+    print(f"管理者ログイン ID: {ADMIN_USERNAME} / 自動生成パスワード: {ADMIN_PASSWORD}", flush=True)
+
 
 # ■設定: wkhtmltopdfのパス (ご自身の環境に合わせてください)
 path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
