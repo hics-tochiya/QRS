@@ -1,9 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, abort
 import openpyxl
 import os
 import csv
 import pdfkit
 import zipfile
+import secrets
+import sqlite3
 from datetime import datetime, timedelta
 
 # 本物のExcelを裏で操作するためのライブラリ
@@ -11,7 +13,29 @@ import win32com.client
 import pythoncom  # マルチスレッド（Webサーバー）環境でExcelを安全に動かすために必要
 
 app = Flask(__name__)
-app.secret_key = 'inventory_secret_key'
+def load_local_credentials():
+    """初回だけ生成し、再起動・git pull後も同じ認証情報を使う。"""
+    os.makedirs(app.instance_path, exist_ok=True)
+    database = os.path.join(app.instance_path, 'local_credentials.sqlite3')
+    with sqlite3.connect(database, timeout=30) as connection:
+        connection.execute('CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        connection.execute('BEGIN IMMEDIATE')
+        values = dict(connection.execute('SELECT name, value FROM settings'))
+        for name, factory in [('secret_key', lambda: secrets.token_hex(32)),
+                              ('admin_password', lambda: secrets.token_urlsafe(18))]:
+            if name not in values:
+                values[name] = factory()
+                connection.execute('INSERT INTO settings (name, value) VALUES (?, ?)', (name, values[name]))
+    return values
+
+
+_local_credentials = load_local_credentials()
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or _local_credentials['secret_key']
+ADMIN_USERNAME = os.environ.get('QRS_ADMIN_USERNAME') or 'admin'
+ADMIN_PASSWORD = os.environ.get('QRS_ADMIN_PASSWORD') or _local_credentials['admin_password']
+if not os.environ.get('QRS_ADMIN_PASSWORD'):
+    print(f"管理者ログイン ID: {ADMIN_USERNAME} / 自動生成パスワード: {ADMIN_PASSWORD}", flush=True)
+
 
 # ■設定: wkhtmltopdfのパス (ご自身の環境に合わせてください)
 path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
@@ -227,6 +251,50 @@ def download_pdf():
         return f"<h1>PDF作成エラー</h1><p>{str(e)}</p>"
 
 
+
+# --- 保存済みPDFの閲覧・ダウンロード ---
+def saved_pdf_path(filename):
+    # Windowsの区切り文字も拒否し、保存フォルダ直下のPDFだけを配信する。
+    if (not filename or '/' in filename or '\\' in filename
+            or not filename.lower().endswith('.pdf')):
+        abort(404)
+    directory = os.path.realpath(DOWNLOAD_DIR)
+    path = os.path.realpath(os.path.join(directory, filename))
+    if os.path.dirname(path) != directory or not os.path.isfile(path):
+        abort(404)
+    return path
+
+
+@app.route('/pdfs')
+def saved_pdfs():
+    pdfs = []
+    with os.scandir(DOWNLOAD_DIR) as entries:
+        for entry in entries:
+            if (entry.is_file(follow_symlinks=False)
+                    and entry.name.lower().endswith('.pdf')):
+                stat = entry.stat()
+                pdfs.append({
+                    'name': entry.name,
+                    'modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y/%m/%d %H:%M'),
+                    'timestamp': stat.st_mtime,
+                    'size_kb': max(1, (stat.st_size + 1023) // 1024),
+                })
+    pdfs.sort(key=lambda pdf: (pdf['timestamp'], pdf['name']), reverse=True)
+    return render_template('saved_pdfs.html', pdfs=pdfs)
+
+
+@app.route('/pdfs/<filename>/view')
+def view_saved_pdf(filename):
+    return send_file(saved_pdf_path(filename), mimetype='application/pdf',
+                     as_attachment=False, download_name=filename)
+
+
+@app.route('/pdfs/<filename>/download')
+def download_saved_pdf(filename):
+    return send_file(saved_pdf_path(filename), mimetype='application/pdf',
+                     as_attachment=True, download_name=filename)
+
+
 # --- 管理者機能 ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -234,7 +302,7 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        if username == 'admin' and password == 'hics-4411':
+        if ADMIN_PASSWORD and username == ADMIN_USERNAME and secrets.compare_digest(password or '', ADMIN_PASSWORD):
             session['is_admin'] = True
             return redirect(url_for('admin'))
         else:
