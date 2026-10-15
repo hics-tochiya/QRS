@@ -62,6 +62,7 @@
 
         {% if not is_pdf %}
         <div style="text-align: right; margin-bottom: 10px;">
+            <a href="{{ url_for('saved_pdfs') }}" class="btn-action btn-print">保存済みPDF一覧</a>
             <a href="/download_pdf" class="btn-action btn-print">📥 結果をPDFでダウンロード</a>
         </div>
         {% endif %}

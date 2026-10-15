@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>保存済みPDF一覧</title>
+    <style>
+        body { font-family: "Meiryo", sans-serif; background: #f4f4f4; margin: 0; padding: 16px; color: #222; }
+        main { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        th { background: #eee; white-space: nowrap; }
+        .filename { overflow-wrap: anywhere; min-width: 160px; }
+        .actions { min-width: 180px; }
+        .button { display: inline-block; padding: 8px 12px; margin: 3px; color: white; background: #0069d9; border-radius: 4px; text-decoration: none; }
+        .download { background: #267b39; }
+    </style>
+</head>
+<body>
+<main>
+    <a href="{{ url_for('select_location') }}">← 場所選択へ戻る</a>
+    <h1>保存済みPDF一覧</h1>
+    <p>保存件数：{{ pdfs|length }}件（更新日時が新しい順）</p>
+    {% if pdfs %}
+    <div class="table-scroll">
+    <table>
+        <thead><tr><th>ファイル名</th><th>更新日時</th><th>サイズ</th><th>操作</th></tr></thead>
+        <tbody>
+        {% for pdf in pdfs %}
+        <tr>
+            <td class="filename">{{ pdf.name }}</td>
+            <td>{{ pdf.modified }}</td>
+            <td>{{ pdf.size_kb }} KB</td>
+            <td class="actions">
+                <a class="button" href="{{ url_for('view_saved_pdf', filename=pdf.name) }}" target="_blank" rel="noopener">閲覧</a>
+                <a class="button download" href="{{ url_for('download_saved_pdf', filename=pdf.name) }}">ダウンロード</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    <p>「閲覧」は新しいタブで開きます。PDF表示に対応していないブラウザではダウンロードされる場合があります。</p>
+    {% else %}
+    <p>保存済みPDFはありません。照合結果画面で「結果をPDFでダウンロード」を実行すると、ここに表示されます。</p>
+    {% endif %}
+</main>
+</body>
+</html>
