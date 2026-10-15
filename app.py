@@ -37,6 +37,74 @@ if not os.environ.get('QRS_ADMIN_PASSWORD'):
     print(f"管理者ログイン ID: {ADMIN_USERNAME} / 自動生成パスワード: {ADMIN_PASSWORD}", flush=True)
 
 
+
+# メール設定はinstance内に保持し、GitHubには保存しない。
+def configure_admin_mail():
+    from getpass import getpass
+    mail_password = getpass('Googleのアプリパスワード（入力は表示されません）: ')
+    mail_password = ''.join(mail_password.split())
+    if not mail_password:
+        raise ValueError('アプリパスワードが空です。')
+    database = os.path.join(app.instance_path, 'local_credentials.sqlite3')
+    with sqlite3.connect(database, timeout=30) as connection:
+        connection.execute(
+            'INSERT OR REPLACE INTO settings (name, value) VALUES (?, ?)',
+            ('smtp_app_password', mail_password))
+    print('メール設定を保存しました。instanceフォルダは共有・コミットしないでください。')
+
+
+def send_admin_password():
+    import smtplib
+    import ssl
+    from email.message import EmailMessage
+    database = os.path.join(app.instance_path, 'local_credentials.sqlite3')
+    with sqlite3.connect(database, timeout=30) as connection:
+        row = connection.execute(
+            'SELECT value FROM settings WHERE name = ?', ('smtp_app_password',)).fetchone()
+    if not row:
+        raise ValueError('先に python app.py --configure-mail を実行してください。')
+    sender = 'gd1tochiya@std.hi-joho.ac.jp'
+    recipient = 'gtochiya@std.hi-joho.ac.jp'
+    message = EmailMessage()
+    message['Subject'] = 'QRS 管理者ログイン情報'
+    message['From'] = sender
+    message['To'] = recipient
+    message.set_content(
+        f'QRSの管理者ログイン情報です。\n\n'
+        f'管理者ID: {ADMIN_USERNAME}\nパスワード: {ADMIN_PASSWORD}\n\n'
+        '学内ネットワークから http://10.16.150.135:5001/login を開いてください。\n'
+        'このメールは大切に保管してください。\n')
+    with smtplib.SMTP('smtp.gmail.com', 587, timeout=20) as smtp:
+        smtp.ehlo()
+        smtp.starttls(context=ssl.create_default_context())
+        smtp.ehlo()
+        smtp.login(sender, row[0])
+        smtp.send_message(message)
+    print(f'管理者ログイン情報を {recipient} に送信しました。')
+
+
+# サーバーを起動せず、手元の端末からだけメール設定・送信を行う。
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--configure-mail', action='store_true',
+                        help='アプリパスワードを保存して管理者ログイン情報を送信')
+    parser.add_argument('--send-admin-password', action='store_true',
+                        help='保存済みの設定で管理者ログイン情報を再送信')
+    args = parser.parse_args()
+    if args.configure_mail or args.send_admin_password:
+        try:
+            if args.configure_mail:
+                configure_admin_mail()
+            send_admin_password()
+        except Exception as error:
+            # SMTP応答に認証情報が含まれる可能性があるため、詳細を出力しない。
+            print(f'メール送信に失敗しました（{type(error).__name__}）。'
+                  'アプリパスワード、学校の送信制限、ネットワーク接続を確認してください。')
+            raise SystemExit(1)
+        raise SystemExit(0)
+
+
 # ■設定: wkhtmltopdfのパス (ご自身の環境に合わせてください)
 path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
 pdf_config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
@@ -376,4 +444,4 @@ def admin():
 
 if __name__ == '__main__':
     # 同じネットワーク内の他端末からアクセスできるように 0.0.0.0 を指定
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=False)
